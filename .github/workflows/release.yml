@@ -1,0 +1,53 @@
+name: Publish verified Windows build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful Check and build run ID from main
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: ${{ inputs.build_run }}
+    steps:
+      - name: Validate build provenance
+        id: build
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]] || exit 1
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > /tmp/build.json
+          jq -e '.conclusion == "success" and .head_branch == "main" and .event == "push" and .path == ".github/workflows/ci.yml"' /tmp/build.json
+          printf 'commit=%s\n' "$(jq -r '.head_sha' /tmp/build.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.build.outputs.commit }}
+      - name: Read app version
+        id: version
+        run: python -c "import tomllib; print('version=' + tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ComputerTutor-${{ steps.version.outputs.version }}-windows-x64
+          run-id: ${{ inputs.build_run }}
+          github-token: ${{ github.token }}
+          path: release-assets
+      - name: Check files and publish release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_COMMIT: ${{ steps.build.outputs.commit }}
+        run: |
+          test -s "release-assets/ComputerTutor-Setup-$VERSION-x64.exe"
+          test -s "release-assets/ComputerTutor-$VERSION-portable-x64.zip"
+          (cd release-assets && sha256sum *.exe *.zip > SHA256SUMS.txt)
+          if ! gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_COMMIT" --title "Computer Tutor $VERSION" --notes-file docs/release-notes.md --draft
+          fi
+          gh release upload "v$VERSION" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "v$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
