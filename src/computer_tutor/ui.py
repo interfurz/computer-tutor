@@ -339,7 +339,14 @@ class LessonDock(QWidget):
             self.explanation.setPlainText(text)
         title = state.tutorial.title if state.tutorial else "Bereit für deinen Agenten"
         shortcut = "Strg+Alt+Esc: Stopp" if hotkey_available else "Stopp-Hotkey nicht verfügbar"
-        self.meta.setText(f"{title}  ·  {shortcut}")
+        self.meta.setToolTip(f"{title}  ·  {shortcut}")
+        self.meta.setText(
+            self.meta.fontMetrics().elidedText(
+                f"{title}  ·  {shortcut}",
+                Qt.TextElideMode.ElideRight,
+                self.width() - 44,
+            )
+        )
         count = len(state.tutorial.steps) if state.tutorial else 0
         self.counter.setText(f"{state.step_index + 1} / {count}" if count else "Noch kein Tutorial")
         self.previous.setEnabled(count > 0 and state.step_index > 0)
