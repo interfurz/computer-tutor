@@ -26,7 +26,9 @@ async def connected_client():
     parameters = StdioServerParameters(
         command=executable or sys.executable,
         args=(
-            ["--mcp"] if executable else ["-m", "computer_tutor", "--mcp", "--allow-non-windows"]
+            ["--mcp", "--allow-non-windows"]
+            if executable
+            else ["-m", "computer_tutor", "--mcp", "--allow-non-windows"]
         ),
         env={"QT_QPA_PLATFORM": "offscreen"},
     )

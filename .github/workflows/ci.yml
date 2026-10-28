@@ -38,7 +38,7 @@ jobs:
           version: "0.12.23"
           python-version: "3.12"
       - run: uv sync --locked --extra build --extra dev
-      - run: uv run --no-sync pyinstaller --noconfirm --clean --onedir --name computer-tutor --collect-all mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
+      - run: uv run --no-sync pyinstaller --noconfirm --clean --onedir --name computer-tutor --collect-submodules mcp.server.fastmcp --copy-metadata mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
       - name: Verify packaged MCP server
         run: uv run --no-sync pytest -q tests/test_server.py -k real_stdio
         env:

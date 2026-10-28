@@ -130,7 +130,7 @@ native Eingaben funktionieren nur auf Windows.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[build]"
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --name computer-tutor --collect-all mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --name computer-tutor --collect-submodules mcp.server.fastmcp --copy-metadata mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
 .\dist\computer-tutor\computer-tutor.exe --demo
 ```
 
