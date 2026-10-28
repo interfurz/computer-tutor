@@ -222,6 +222,11 @@ class TutorController(QObject):
         self.lesson_mode = "external"
         self.lesson_done = False
         self.dock_visible = True
+        if self.home:
+            self.home.hide()
+            self.capture_windows = [
+                window for window in self.capture_windows if window != self.home
+            ]
         self.state.load(tutorial)
         self.state.control_enabled = False
         self.refresh()
