@@ -2,16 +2,13 @@
 
 import base64
 import json
-import threading
-import time
 from typing import Annotated, Any, Literal
 
-import mss
-import mss.tools
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
 from pydantic import Field
 
+from computer_tutor.capture import ScreenCapture
 from computer_tutor.models import Step, Tutorial, Unit
 from computer_tutor.platform import WindowsInput
 
@@ -33,7 +30,7 @@ def create_server(bridge, controller) -> FastMCP:
             "bundled; you are the reasoning agent."
         ),
     )
-    capture_lock = threading.Lock()
+    capture = ScreenCapture(bridge, controller)
 
     @server.tool()
     def tutor_list_monitors() -> list[dict]:
@@ -48,36 +45,13 @@ def create_server(bridge, controller) -> FastMCP:
         Nothing is saved to disk. Rectangles: x=left/image_width, y=top/image_height,
         width=box_width/image_width, height=box_height/image_height.
         """
-        with capture_lock:
-            monitor = bridge.call(lambda: controller.begin_capture(monitor_id))
-            try:
-                # Allow the desktop compositor to remove both windows before taking the frame.
-                time.sleep(0.15)
-                bounds = monitor["physical_bounds"]
-                with mss.mss() as capture:
-                    shot = capture.grab(bounds)
-                    png = mss.tools.to_png(shot.rgb, shot.size)
-                # Display changes during capture invalidate the frame's coordinate mapping.
-                current = bridge.call(lambda: controller.monitor(monitor_id))
-                if current != monitor:
-                    raise RuntimeError("Display layout changed during capture. Capture again.")
-                metadata = {
-                    "monitor_id": monitor_id,
-                    "width": shot.width,
-                    "height": shot.height,
-                    "physical_bounds": bounds,
-                    "coordinate_space": "monitor_normalized",
-                }
-                return [
-                    TextContent(type="text", text=json.dumps(metadata)),
-                    ImageContent(
-                        type="image",
-                        mimeType="image/png",
-                        data=base64.b64encode(png).decode("ascii"),
-                    ),
-                ]
-            finally:
-                bridge.call(controller.end_capture)
+        metadata, png = capture.capture(monitor_id)
+        return [
+            TextContent(type="text", text=json.dumps(metadata)),
+            ImageContent(
+                type="image", mimeType="image/png", data=base64.b64encode(png).decode("ascii")
+            ),
+        ]
 
     @server.tool()
     def tutor_present_tutorial(tutorial: Tutorial) -> dict[str, Any]:

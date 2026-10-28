@@ -30,7 +30,10 @@ async def connected_client():
             if executable
             else ["-m", "computer_tutor", "--mcp", "--allow-non-windows"]
         ),
-        env={"QT_QPA_PLATFORM": "offscreen"},
+        env={
+            "QT_QPA_PLATFORM": "offscreen",
+            "COMPUTER_TUTOR_DATA_DIR": os.environ["COMPUTER_TUTOR_DATA_DIR"],
+        },
     )
     async with stdio_client(parameters) as (read, write):
         async with ClientSession(read, write) as session:
@@ -91,7 +94,7 @@ def test_real_stdio_client_can_teach_and_navigate_without_input_permission():
     asyncio.run(scenario())
 
 
-def test_eof_closes_the_hud_process():
+def test_eof_closes_mcp_process_and_keeps_the_app_available():
     process = subprocess.run(
         [sys.executable, "-m", "computer_tutor", "--mcp", "--allow-non-windows"],
         input="",
@@ -102,6 +105,26 @@ def test_eof_closes_the_hud_process():
     )
     assert process.returncode == 0, process.stderr
     assert process.stdout == ""
+    from computer_tutor.ipc import LocalClient
+
+    assert LocalClient().call("ping")["running"]
+
+
+def test_two_stdio_clients_share_one_app_and_cannot_grant_permission():
+    from computer_tutor.ipc import LocalClient
+
+    async def scenario():
+        async with connected_client():
+            client = LocalClient()
+            instance = client.call("ping")["instance_id"]
+            async with connected_client() as second:
+                assert client.call("ping")["instance_id"] == instance
+                state = await second.call_tool("tutor_get_state", {})
+                assert state.structuredContent["connected_agents"] == 2
+                with pytest.raises(ValueError, match="Unknown"):
+                    client.call("set_control", True)
+
+    asyncio.run(scenario())
 
 
 def test_screenshot_failure_still_restores_hud(monkeypatch):
@@ -116,9 +139,9 @@ def test_screenshot_failure_still_restores_hud(monkeypatch):
         }
     }
     server = create_server(ImmediateBridge(), controller)
-    monkeypatch.setattr("computer_tutor.server.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("computer_tutor.capture.time.sleep", lambda _seconds: None)
     monkeypatch.setattr(
-        "computer_tutor.server.mss.mss", Mock(side_effect=OSError("capture failed"))
+        "computer_tutor.capture.mss.mss", Mock(side_effect=OSError("capture failed"))
     )
     with pytest.raises(ToolError, match="capture failed"):
         asyncio.run(server._tool_manager.call_tool("tutor_capture_screen", {"monitor_id": "test"}))
@@ -136,8 +159,8 @@ def test_screenshot_returns_pixels_and_monitor_metadata(monkeypatch):
     capture.__enter__ = Mock(return_value=capture)
     capture.__exit__ = Mock(return_value=False)
     capture.grab.return_value = shot
-    monkeypatch.setattr("computer_tutor.server.mss.mss", Mock(return_value=capture))
-    monkeypatch.setattr("computer_tutor.server.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("computer_tutor.capture.mss.mss", Mock(return_value=capture))
+    monkeypatch.setattr("computer_tutor.capture.time.sleep", lambda _seconds: None)
     server = create_server(ImmediateBridge(), controller)
     result = asyncio.run(
         server._tool_manager.call_tool(

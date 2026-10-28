@@ -2,7 +2,7 @@
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -19,6 +19,35 @@ from computer_tutor.models import Step
 
 TEAL = QColor("#61e2c1")
 INK = QColor("#101c23")
+
+
+class DragHandle(QLabel):
+    def __init__(self, dock):
+        super().__init__("COMPUTER / TUTOR")
+        self.dock = dock
+        self.offset = None
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setToolTip("Ziehen zum Verschieben · Doppelklick setzt die Position zurück")
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.offset = event.globalPosition().toPoint() - self.dock.pos()
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        if self.offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            area = self.dock.controller.screen().availableGeometry()
+            target = event.globalPosition().toPoint() - self.offset
+            target.setX(max(area.left(), min(target.x(), area.right() - self.dock.width() + 1)))
+            target.setY(max(area.top(), min(target.y(), area.bottom() - self.dock.height() + 1)))
+            self.dock.user_position = True
+            self.dock.move(target)
+
+    def mouseReleaseEvent(self, _event):  # noqa: N802
+        self.offset = None
+
+    def mouseDoubleClickEvent(self, _event):  # noqa: N802
+        self.dock.reset_position()
+        self.dock.controller.refresh()
 
 
 class AnnotationOverlay(QWidget):
@@ -153,6 +182,8 @@ class LessonDock(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint,
         )
         self.controller = controller
+        self.user_position = False
+        self.compact = False
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setWindowTitle("Computer Tutor")
@@ -188,7 +219,7 @@ class LessonDock(QWidget):
         layout.setContentsMargins(22, 17, 22, 17)
         layout.setSpacing(10)
         top = QHBoxLayout()
-        eyebrow = QLabel("COMPUTER / TUTOR")
+        eyebrow = DragHandle(self)
         eyebrow.setObjectName("eyebrow")
         top.addWidget(eyebrow)
         top.addStretch()
@@ -196,10 +227,18 @@ class LessonDock(QWidget):
         self.visibility.setAccessibleName("Markierungen ein- oder ausblenden")
         self.visibility.clicked.connect(controller.toggle_annotations)
         top.addWidget(self.visibility)
+        home = QPushButton("⌂")
+        home.setAccessibleName("Startfenster öffnen")
+        home.clicked.connect(controller.show_home)
+        top.addWidget(home)
+        self.collapse = QPushButton("−")
+        self.collapse.setAccessibleName("Lernleiste ein- oder ausklappen")
+        self.collapse.clicked.connect(self.toggle_compact)
+        top.addWidget(self.collapse)
         close = QPushButton("×")
-        close.setAccessibleName("Computer Tutor beenden")
-        close.setToolTip("App und MCP-Verbindung beenden")
-        close.clicked.connect(controller.quit)
+        close.setAccessibleName("Lernleiste ausblenden und pausieren")
+        close.setToolTip("Pausieren und zum Tray ausblenden")
+        close.clicked.connect(controller.hide_dock)
         top.addWidget(close)
         layout.addLayout(top)
         self.meta = QLabel()
@@ -216,10 +255,19 @@ class LessonDock(QWidget):
         self.explanation.setAccessibleName("Ausführliche Erklärung des aktuellen Lernschritts")
         self.explanation.setMinimumHeight(65)
         layout.addWidget(self.explanation, 1)
+        self.session_message = QLabel()
+        self.session_message.setTextFormat(Qt.TextFormat.PlainText)
+        self.session_message.setWordWrap(True)
+        self.session_message.setObjectName("meta")
+        layout.addWidget(self.session_message)
+        self.retry = QPushButton("Erneut versuchen")
+        self.retry.clicked.connect(controller._generate)
+        self.retry.hide()
+        layout.addWidget(self.retry)
         navigation = QHBoxLayout()
         self.previous = QPushButton("←  Zurück")
         self.previous.setAccessibleName("Vorheriger Lernschritt")
-        self.previous.clicked.connect(lambda: controller.navigate("previous"))
+        self.previous.clicked.connect(lambda: controller.navigate_user("previous"))
         navigation.addWidget(self.previous)
         self.counter = QLabel()
         self.counter.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -227,7 +275,7 @@ class LessonDock(QWidget):
         self.next = QPushButton("Weiter  →")
         self.next.setObjectName("next")
         self.next.setAccessibleName("Nächster Lernschritt")
-        self.next.clicked.connect(lambda: controller.navigate("next"))
+        self.next.clicked.connect(lambda: controller.navigate_user("next"))
         navigation.addWidget(self.next)
         layout.addLayout(navigation)
         bottom = QHBoxLayout()
@@ -245,10 +293,37 @@ class LessonDock(QWidget):
     def render(self, state, screen, hotkey_available):
         step = state.step
         width = min(660, screen.availableGeometry().width() - 32)
-        height = min(365, math.floor(screen.availableGeometry().height() * 0.65))
-        self.resize(max(320, width), max(290, height))
+        height = (
+            210 if self.compact else min(390, math.floor(screen.availableGeometry().height() * 0.7))
+        )
+        self.resize(max(320, width), max(190 if self.compact else 310, height))
         area = screen.availableGeometry()
-        self.move(area.x() + (area.width() - self.width()) // 2, area.bottom() - self.height() - 15)
+        if not self.user_position:
+            x = area.x() + (area.width() - self.width()) // 2
+            options = [QPoint(x, area.bottom() - self.height() - 15), QPoint(x, area.top() + 15)]
+            targets = []
+            if step:
+                for annotation in step.annotations:
+                    r = annotation.target
+                    geometry = screen.geometry()
+                    targets.append(
+                        QRectF(
+                            geometry.x() + r.x * geometry.width(),
+                            geometry.y() + r.y * geometry.height(),
+                            r.width * geometry.width(),
+                            r.height * geometry.height(),
+                        )
+                    )
+
+            def overlap(point):
+                panel = QRectF(point.x(), point.y(), self.width(), self.height())
+                return sum(
+                    panel.intersected(t).width() * panel.intersected(t).height()
+                    for t in targets
+                    if panel.intersects(t)
+                )
+
+            self.move(min(options, key=overlap))
         self.title.setText(step.title if step else "Was möchtest du lernen?")
         text = (
             step.explanation
@@ -275,3 +350,56 @@ class LessonDock(QWidget):
         self.permission.blockSignals(True)
         self.permission.setChecked(state.control_enabled)
         self.permission.blockSignals(False)
+
+    def reset_position(self):
+        self.user_position = False
+
+    def toggle_compact(self):
+        self.compact = not self.compact
+        self.explanation.setVisible(not self.compact)
+        self.meta.setVisible(not self.compact)
+        self.collapse.setText("+" if self.compact else "−")
+        self.controller.refresh()
+
+    def apply_text_size(self, size):
+        self.explanation.setStyleSheet(f"font-size: {size}px;")
+
+    def update_session(self, controller):
+        self.session_message.setText(controller.message)
+        self.retry.setVisible(controller.generation_error and not controller.busy)
+        if controller.lesson_mode == "direct":
+            if controller.state.step is None:
+                self.title.setText(
+                    "Dein Tutor schaut auf den Bildschirm …"
+                    if controller.busy
+                    else "Noch kein Lernschritt"
+                )
+                self.explanation.setPlainText(
+                    "Die KI erstellt eine Erklärung aus deinem aktuellen Bildschirm. "
+                    "Du kannst die Anfrage jederzeit mit Stopp abbrechen."
+                )
+            self.permission.setVisible(False)
+            self.next.setEnabled(
+                not controller.busy
+                and controller.state.step is not None
+                and (
+                    not controller.lesson_done
+                    or controller.state.step_index < len(controller.state.tutorial.steps) - 1
+                )
+            )
+            if controller.busy:
+                self.next.setText("Wird erstellt …")
+            else:
+                self.next.setText("Weiter  →")
+        else:
+            self.permission.setVisible(True)
+            self.next.setText("Weiter  →")
+        self.previous.setEnabled(self.previous.isEnabled() and not controller.busy)
+
+    def moveEvent(self, event):  # noqa: N802
+        super().moveEvent(event)
+        if hasattr(self.controller, "dock"):
+            self.controller.overlay.panel_rect = QRectF(
+                self.geometry().translated(-self.controller.screen().geometry().topLeft())
+            )
+            self.controller.overlay.update()

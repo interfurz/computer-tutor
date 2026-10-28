@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "computer-tutor"
-version = "0.1.0"
+version = "1.0.0"
 description = "A Windows learning HUD and local MCP tools for AI-guided desktop tutorials."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,7 @@ dependencies = [
   "pydantic>=2.11,<3",
   "PySide6-Essentials>=6.8,<7",
   "mss>=10,<11",
+  "httpx>=0.28,<1",
 ]
 
 [project.optional-dependencies]

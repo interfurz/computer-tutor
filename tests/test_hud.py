@@ -5,7 +5,6 @@ from unittest.mock import Mock
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
 
 from computer_tutor.bridge import GuiBridge
 from computer_tutor.controller import TutorController
@@ -14,8 +13,8 @@ from computer_tutor.models import TutorState
 
 
 @pytest.fixture(scope="module")
-def hud():
-    app = QApplication.instance() or QApplication([])
+def hud(qt_app):
+    app = qt_app
     controller = TutorController(app)
     yield app, controller
     controller.hotkey.close()

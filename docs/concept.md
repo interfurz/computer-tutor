@@ -1,4 +1,6 @@
-# Produktidee: Der Computer erklärt sich am Computer
+# Ursprüngliches Brainstorming und weitere Produktideen
+
+Dieses Dokument hält die erste Ideensammlung fest. Den umgesetzten Stand der App 1.0 beschreibt die README.
 
 ## Der Kern
 

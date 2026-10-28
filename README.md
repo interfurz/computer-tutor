@@ -1,145 +1,145 @@
 # Computer Tutor
 
-**Ein Lern-HUD für Windows, das KI-Agenten über MCP steuern können.** Der Agent
-markiert Bedienelemente direkt auf deinem Bildschirm, schreibt Hinweise daneben
-und erklärt die Aufgabe Schritt für Schritt in einer Lernleiste unten mittig.
+**Eine Windows-App, die Programme direkt auf deinem Bildschirm erklärt.** Ein KI-Tutor
+markiert Schaltflächen, schreibt Hinweise daneben und begleitet dich Schritt für Schritt.
+Du kannst eine eigene KI-Verbindung einrichten oder einen vorhandenen MCP-Agenten verwenden.
 
-Erster Prototyp · Windows 10/11 x64 · Python 3.11+ · kein eingebautes KI-Modell.
+[Windows-Download](https://github.com/interfurz/computer-tutor/releases/latest) ·
+[Agenten-Leitfaden](docs/agent-guide.md) · [Architektur](docs/architecture.md)
 
-![Die tatsächliche Lernleiste, unter Linux mit Qt gerendert](docs/lesson-dock.png)
+![Startfenster der App, mit Qt gerendert](docs/app-home.png)
 
-## Was schon funktioniert
+## Installieren und loslegen
 
-- Transparente, durchklickbare Markierungen mit nummerierten Textkarten.
-- Rahmen, Spotlight und Punktmarkierungen; mehrere Hinweise pro Schritt.
-- Lernleiste mit ausführlichem Text, Zurück/Weiter und Schrittzähler.
-- Ein Monitor pro Tutorial, auswählbar über MCP. Negative Desktopkoordinaten und
-  unterschiedliche Skalierungen werden über getrennte physische/logische Geometrie behandelt.
-- MCP über **lokales stdio**, einschließlich Bildschirmaufnahme ohne das HUD.
-- Optionale Maus- und Tastatursteuerung über Windows `SendInput`, einschließlich Unicode.
-- Steuerung ist beim Start **gesperrt**. Nur der lokale Schalter erlaubt sie.
-  **Stopp** oder **Strg+Alt+Esc** sperrt Eingaben und blendet Hinweise aus.
-- Ein eigenständiges Demo-Tutorial ohne KI-Verbindung.
+1. **ComputerTutor-Setup-1.0.0-x64.exe** aus den Releases herunterladen und installieren.
+   Python und Administratorrechte sind nicht erforderlich.
+2. **Computer Tutor** aus dem Startmenü öffnen. Über **Demo entdecken** kannst du das HUD
+   sofort ausprobieren, ohne Zugangsdaten einzugeben.
+3. Für den integrierten Tutor unter **KI-Verbindung** API-Adresse, ein Modell mit Bildfunktion
+   und deinen eigenen API-Key eintragen. Bildschirmaufnahmen erlauben und speichern.
+4. Unter **Lernen** ein Ziel eingeben, den Bildschirm auswählen und **Lernen starten** drücken.
+5. Den gezeigten Schritt selbst ausführen. **Weiter** nimmt den Bildschirm neu auf und fragt
+   nach dem nächsten Schritt. **Zurück** zeigt die bereits erstellten Erklärungen.
 
-## Unter Windows starten
+Die portable ZIP funktioniert ohne Installation: vollständig entpacken und **ComputerTutor.exe**
+starten. Beide Varianten benötigen Windows 10 ab Version 2004 oder Windows 11, jeweils x64.
 
-In PowerShell, mit installiertem Python 3.11 oder neuer:
+## Direkt am Ziel lernen
 
-```powershell
-git clone https://github.com/interfurz/computer-tutor.git
-cd computer-tutor
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe -m computer_tutor --demo
-```
+![Die Lernleiste mit Navigation und Erklärung](docs/lesson-dock.png)
 
-Du brauchst weder Administratorrechte noch einen API-Key für die App. Die Demo zeigt
-ausdrücklich Beispielbereiche auf dem Desktop; sie erkennt noch keine Schaltflächen.
-Ein echter MCP-Agent übernimmt das Sehen, Planen und Erklären.
+- Durchklickbare Rahmen, Spotlights und Textkarten direkt am Ziel.
+- Ausführliche Erklärung und Zurück/Weiter in einer eigenen Lernleiste.
+- Die Leiste weicht markierten Bereichen möglichst aus. Am Schriftzug ziehen zum Verschieben,
+  doppelklicken zum Zurücksetzen, **−** zum Einklappen.
+- **×** pausiert die Begleitung und blendet die Leiste aus. Über das Tray oder das Startfenster
+  lässt sie sich wieder öffnen. **⌂** öffnet das Startfenster.
+- **Stopp** oder **Strg+Alt+Esc** bricht die Begleitung ab, blendet Markierungen aus und sperrt
+  Agenteneingaben. Ein bereits gesendeter API-Aufruf kann beim Anbieter noch zu Ende laufen;
+  sein Ergebnis wird nach dem Stopp verworfen.
+- Tutorials lassen sich als JSON speichern und wieder öffnen. Beim Import wird der aktuell
+  gewählte Monitor verwendet. Bilder, Zugangsdaten und Eingabefreigaben werden nicht exportiert.
 
-## Mit einem MCP-Agenten verbinden
+**Weiter ist kein Erfolgsbeweis.** Die KI soll anhand des neuen Bildes prüfen, ob die vorige
+Handlung erledigt wurde. **Zurück** macht keine Änderungen in anderen Programmen rückgängig.
+Ältere Schritte enthalten historische Markierungen; für einen veränderten Bildschirm einen
+neuen Schritt erzeugen. Importierte Tutorials sind gespeicherte Erklärungen ohne laufende KI.
 
-In einem Windows-MCP-Client mit **lokalen stdio-Servern** eine Konfiguration wie diese
-eintragen. Den absoluten Pfad anpassen:
+## Welche KI lässt sich verwenden?
+
+Die App spricht eine **OpenAI-kompatible Chat-Completions-API** mit Bildinhalten und JSON-Modus
+an. Standard: `https://api.openai.com/v1`, Modell `gpt-4.1-mini`. Es ist kein Modell und kein
+API-Guthaben enthalten. Andere Anbieter benötigen ein kompatibles Vision-Modell; lokale
+Anbieter auf `localhost` dürfen HTTP und einen leeren API-Key verwenden.
+
+Der eingebaute Tutor erklärt; du bedienst das Programm selbst. Optionale Computersteuerung
+steht externen MCP-Agenten über getrennte, lokal freizugebende Werkzeuge zur Verfügung.
+
+## Vorhandene MCP-Agenten verbinden
+
+Unter **MCP-Agenten** steht eine kopierbare Konfiguration mit dem richtigen Installationspfad:
 
 ```json
 {
   "mcpServers": {
     "computer-tutor": {
-      "command": "C:\\Users\\DEINNAME\\computer-tutor\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "computer_tutor", "--mcp"]
+      "command": "C:\\Users\\DEINNAME\\AppData\\Local\\Programs\\ComputerTutor\\computer-tutor-mcp.exe",
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-Der Client startet die App zusammen mit dem MCP-Server. Nicht zusätzlich dieselbe
-Instanz manuell starten. Nach dem Beenden der Verbindung schließt sich auch das HUD.
-Ein Linux-/WSL-MCP-Prozess steuert damit nicht automatisch den Windows-Desktop:
-**Server und HUD müssen auf dem Windows-PC des Nutzers laufen.**
+Der MCP-Starter öffnet die App bei Bedarf und verwendet dieselbe laufende Instanz. Mehrere
+Client-Verbindungen teilen sich das HUD; die zuletzt geladene Lektion ist sichtbar. Beim
+Trennen oder Ausfall einer Verbindung wird die Eingabefreigabe zurückgenommen. Die App bleibt
+für weitere Lektionen geöffnet. App über das Tray-Menü **Beenden** vollständig schließen.
 
-Beispielauftrag an den Agenten:
+Beispielauftrag:
 
-> Erkläre mir Schritt für Schritt, wie ich in meinem geöffneten Programm eine Datei
-> speichere. Nutze Computer Tutor. Schau zuerst auf den Bildschirm, markiere jeweils
-> die passende Schaltfläche und lass mich selbst klicken. Prüfe den Bildschirm nach
-> Änderungen erneut, bevor du den nächsten Hinweis setzt.
+> Erkläre mir, wie ich in meinem geöffneten Programm ein PDF exportiere. Nutze Computer Tutor.
+> Schau zuerst auf den Bildschirm, markiere das richtige Ziel und lass mich selbst klicken.
+> Prüfe den Bildschirm nach Änderungen erneut.
 
-| Werkzeug | Zweck |
+| Werkzeuge | Zweck |
 | --- | --- |
-| `tutor_list_monitors` | Monitore und ihre IDs ermitteln |
-| `tutor_capture_screen` | Screenshot eines Monitors, ohne das HUD |
-| `tutor_present_tutorial` | Tutorial mit Schritten und Markierungen laden |
-| `tutor_update_step` | Aktuellen Hinweis an eine veränderte Oberfläche anpassen |
-| `tutor_get_state` | Schritt, Nutzer-Navigation und Eingabefreigabe abfragen |
-| `tutor_navigate` | Zum vorherigen/nächsten Erklärungsschritt wechseln |
-| `tutor_set_annotations_visible` | Hinweise ein-/ausblenden |
-| `tutor_stop` | Eingaben sperren und Hinweise ausblenden |
-| `desktop_click` / `desktop_type_text` | Klicken / Unicode-Text eingeben |
-| `desktop_hotkey` / `desktop_scroll` | Tastenkombination / Mausrad |
+| `tutor_list_monitors`, `tutor_capture_screen` | Bildschirme und eine HUD-freie Aufnahme |
+| `tutor_present_tutorial`, `tutor_update_step` | Lernschritte und Markierungen setzen |
+| `tutor_get_state`, `tutor_navigate` | Zustand lesen, Erklärungen wechseln |
+| `tutor_set_annotations_visible`, `tutor_stop` | Hinweise ausblenden, Eingaben sperren |
+| `desktop_click`, `desktop_type_text` | Maus und Unicode-Texteingaben |
+| `desktop_hotkey`, `desktop_scroll` | Tastenkombinationen und Mausrad |
 
-Vollständiges Beispiel und Koordinatenkonvention: [Agenten-Leitfaden](docs/agent-guide.md).
+Nur der Schalter in der Lernleiste erlaubt Eingaben. Ein Agent kann sich die Freigabe nicht
+selbst geben. Klicken auf die eigenen App-Fenster und Tastatureingaben bei deren Fokus sind
+gesperrt. Server, App und Zielprogramme müssen auf demselben Windows-Desktop laufen; ein
+Linux-/WSL-MCP-Prozess erhält dadurch keinen Zugriff auf den Windows-Desktop.
 
-## Bedienung und Grenzen
+## Deine Daten
 
-**Weiter** wechselt die Erklärung. Es bestätigt nicht, dass der Schritt erfolgreich
-ausgeführt wurde. **Zurück** macht keine Änderungen in einem Programm rückgängig.
-Der Agent kann den aktuellen Schritt abfragen und anhand neuer Screenshots prüfen.
-Die App sendet momentan keine proaktiven Schritt-Ereignisse an den Agenten.
+- Direkter Tutor: Nur nach deiner Freigabe und einem Lernstart/neuen Schritt geht eine Aufnahme
+  des ausgewählten Monitors an den eingestellten Anbieter. Dessen Konditionen und API-Kosten gelten.
+- MCP: Screenshots werden auf Werkzeugaufruf an den verbundenen Client übergeben.
+- Die App speichert Screenshots weder auf der Festplatte noch in einer eigenen Cloud.
+- API-Key und lokaler Verbindungsschlüssel sind mit Windows DPAPI für dein Benutzerkonto geschützt.
+- Einstellungen und begrenzte Fehlerlogs liegen unter `%LOCALAPPDATA%\ComputerTutor`.
+- Die App öffnet keinen HTTP-Port. GUI und MCP-Starter sprechen über eine authentifizierte lokale
+  Windows Named Pipe. Es gibt keine Telemetrie.
+- Eine Deinstallation lässt persönliche Einstellungen bestehen. Vorher über **API-Key entfernen**
+  den Schlüssel löschen oder den genannten Datenordner anschließend selbst entfernen.
 
-Die App speichert keine Screenshots auf der Festplatte. Ein angeforderter Screenshot
-wird an den verbundenen MCP-Client übergeben und kann von dessen Modell verarbeitet
-werden. Es gibt keinen HTTP-Port, keine Telemetrie und keinen eigenen Cloud-Dienst.
+## Grenzen und Prüfstand
 
-Die Freigabe erlaubt Eingaben in normale Desktop-Anwendungen; sie ist keine Sandbox
-für deren Folgen. Administratorfenster, UAC, Sperrbildschirm und geschützte Videoinhalte
-werden nicht unterstützt. Der Agent kann die Freigabe nicht per Tool aktivieren.
-Tastatureingaben werden abgewiesen, solange die Lernleiste selbst den Fokus hat;
-ein Klick des Agenten auf die Zielanwendung kann den Fokus wechseln. Agentenklicks
-auf die Lernleiste sind gesperrt.
+Markierungen beziehen sich auf einen Monitor und Bildschirmkoordinaten. Sie folgen noch keinen
+Windows-UI-Automation-Elementen. Nach Verschieben, Scrollen oder Menüwechseln braucht es eine neue
+Aufnahme. Display-/Skalierungsänderungen verwerfen alte Lektionen und sperren Eingaben.
 
-Ein Tutorial verwendet einen Monitor. Bei Änderung der Bildschirmgeometrie oder
-Skalierung werden die Freigabe und alte Markierungen verworfen; der Agent muss neu
-aufnehmen. Markierungen hängen momentan an Bildschirmkoordinaten, nicht an Fenstern.
-Nach Verschieben, Scrollen oder Öffnen eines Menüs braucht es eine neue Aufnahme.
-Viele eng beieinanderliegende Hinweise können überlappen. Die Lernleiste kann Ziele
-unten verdecken; für solche Schritte die Hinweise kurz ausblenden und das Ziel nach
-Möglichkeit aus dem Bereich der Leiste verschieben.
+UAC, Sperrbildschirm, geschützte Inhalte und die Steuerung erhöhter Anwendungen werden nicht
+unterstützt. KI-Ziele können falsch erkannt werden; die Freigabe von Eingaben ist keine Sandbox
+für Aktionen im Zielprogramm. Viele dicht beieinanderliegende Karten können überlappen.
 
-Strg+Alt+Esc ist ein globaler Stopp-Hotkey, solange die App läuft. Kann Windows ihn
-nicht registrieren, zeigt die Leiste das an; die Schaltfläche Stopp bleibt verfügbar.
-Aktuelle Builds sind ein Prototyp und noch nicht auf einem echten Windows-Desktop
-mit mehreren DPI-Skalierungen abgenommen. [Manueller Prüfplan](docs/windows-validation.md).
+Die CI prüft Linux und Windows, die DPAPI-Verschlüsselung, den gebauten MCP-Starter, die gemeinsame
+GUI-Instanz und Installation/Start/Deinstallation. KI-Protokoll und Fehler werden mit kontrollierten
+HTTP-Antworten getestet; ohne bereitgestellten API-Key wird kein kostenpflichtiger Live-Aufruf
+getestet. Die interaktive Abnahme auf echten Desktops mit gemischter DPI-Skalierung bleibt im
+[manuellen Prüfplan](docs/windows-validation.md) dokumentiert.
 
-## Entwicklung und Tests
+## Entwickeln und selbst bauen
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check .
+git clone https://github.com/interfurz/computer-tutor.git
+cd computer-tutor
+uv sync --locked --extra dev --extra build
+uv run computer-tutor
+uv run pytest -q
+uv run ruff check .
+uv run pyinstaller --noconfirm --clean packaging/computer-tutor.spec
 ```
 
-Mit [uv](https://docs.astral.sh/uv/) sind die Abhängigkeiten reproduzierbar aus
-`uv.lock` installierbar: `uv sync --locked --extra dev`.
+Ergebnis: `dist/ComputerTutor/ComputerTutor.exe` und `computer-tutor-mcp.exe` mit gemeinsamem
+`_internal`-Ordner. Den gesamten Ordner verteilen. Für den Installer anschließend
+`ISCC.exe packaging/installer.iss` mit installiertem Inno Setup 6 oder neuer aufrufen.
 
-Unter Linux lassen sich die Protokoll- und Qt-Tests mit `QT_QPA_PLATFORM=offscreen`
-ausführen. `--allow-non-windows` ist ausschließlich für diese Entwicklungsprüfungen;
-native Eingaben funktionieren nur auf Windows.
-
-## Windows-App bauen
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[build]"
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --name computer-tutor --collect-submodules mcp.server.fastmcp --copy-metadata mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
-.\dist\computer-tutor\computer-tutor.exe --demo
-```
-
-Den **gesamten** Ordner `dist/computer-tutor` verteilen, nicht nur die EXE. Für einen
-MCP-Client ist diese EXE mit `args: ["--mcp"]` verwendbar. Der Build verwendet eine
-Konsole für stdio; ein reiner `--windowed`-Build ist kein stdio-MCP-Server.
-GitHub Actions prüft Windows/Linux und erzeugt ein herunterladbares Windows-Buildartefakt.
-
-## Wie es weitergehen kann
-
-Die Produktidee und priorisierte Ausbaustufen stehen in [Konzept & Roadmap](docs/concept.md).
-Die technische Aufteilung steht in [Architektur](docs/architecture.md).
+Ohne uv: `py -3 -m venv .venv`, danach `.venv\Scripts\python.exe -m pip install -e ".[dev,build]"`.
+Unter Linux: `QT_QPA_PLATFORM=offscreen uv run pytest`; `--allow-non-windows` ist nur ein
+Entwicklungsschalter. Native Eingaben und sichere Zugangsdaten benötigen Windows.

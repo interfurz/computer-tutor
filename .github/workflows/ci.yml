@@ -38,13 +38,36 @@ jobs:
           version: "0.12.23"
           python-version: "3.12"
       - run: uv sync --locked --extra build --extra dev
-      - run: uv run --no-sync pyinstaller --noconfirm --clean --onedir --name computer-tutor --collect-submodules mcp.server.fastmcp --copy-metadata mcp --collect-submodules computer_tutor --manifest packaging/windows.manifest src/computer_tutor/__main__.py
-      - name: Verify packaged MCP server
-        run: uv run --no-sync pytest -q tests/test_server.py -k real_stdio
+      - run: uv run --no-sync pyinstaller --noconfirm --clean packaging/computer-tutor.spec
+      - name: Verify packaged MCP server and shared app
+        run: uv run --no-sync pytest -q tests/test_server.py -k "real_stdio or two_stdio"
         env:
           QT_QPA_PLATFORM: offscreen
-          COMPUTER_TUTOR_TEST_EXE: ${{ github.workspace }}\dist\computer-tutor\computer-tutor.exe
+          COMPUTER_TUTOR_TEST_EXE: ${{ github.workspace }}\dist\ComputerTutor\computer-tutor-mcp.exe
+      - name: Build per-user installer and portable ZIP
+        shell: pwsh
+        run: |
+          $compiler = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          if (-not $compiler) { throw "Inno Setup compiler not found" }
+          & $compiler.FullName packaging/installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path dist/ComputerTutor -DestinationPath dist/ComputerTutor-1.0.0-portable-x64.zip
+      - name: Verify installation, application startup and uninstallation
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "Installed Computer Tutor"
+          $env:COMPUTER_TUTOR_DATA_DIR = Join-Path $env:RUNNER_TEMP "installed-tutor-data"
+          $setup = Start-Process -FilePath dist/ComputerTutor-Setup-1.0.0-x64.exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$destination`"" -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+          $app = Start-Process -FilePath "$destination\ComputerTutor.exe" -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($app.ExitCode -ne 0) { throw "Installed app failed: $($app.ExitCode)" }
+          $uninstall = Start-Process -FilePath "$destination\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Uninstaller failed: $($uninstall.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
-          name: computer-tutor-windows-x64
-          path: dist/computer-tutor/
+          name: ComputerTutor-1.0.0-windows-x64
+          path: |
+            dist/ComputerTutor-Setup-1.0.0-x64.exe
+            dist/ComputerTutor-1.0.0-portable-x64.zip

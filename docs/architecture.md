@@ -1,55 +1,61 @@
-# Architektur
+# Architektur 1.0
 
 ```mermaid
 flowchart LR
-    A[MCP-Client mit KI-Agent] <-->|lokales stdio / JSON-RPC| B[MCP-Workerthread]
-    B <-->|Qt-Signal und Future| C[Controller auf GUI-Thread]
+    A[MCP-Client] <-->|stdio| B[computer-tutor-mcp.exe]
+    B <-->|authentifizierte Named Pipe| C[ComputerTutor.exe]
     C --> D[Durchklickbare Markierungen]
-    C --> E[Interaktive Lernleiste]
-    B --> F[MSS-Bildschirmaufnahme]
-    C -->|nur mit lokaler Freigabe| G[Win32 SendInput]
+    C --> E[Lernleiste und Startfenster]
+    C --> F[Direkter Vision-Tutor]
+    F -->|nur auf Nutzeranfrage| G[OpenAI-kompatible API]
+    B --> H[HUD-freie Aufnahme]
+    F --> H
+    C -->|lokale Freigabe| I[Win32 SendInput]
 ```
 
-Ein Prozess besitzt beide Fenster und den MCP-Server. Es gibt keinen offenen
-Netzwerkport und keine zweite, dauerhaft laufende Hintergrundkomponente.
+## Lebenszyklus und IPC
 
-`models.py` definiert validierte Tutorials und den Navigationszustand. `ui.py`
-zeichnet die transparenten Markierungen und die bedienbare Lernleiste getrennt:
-Die Markierungsebene hat `WindowTransparentForInput` und nimmt keinen Fokus an.
+Die sichtbare App hält eine `QLockFile` pro Datenverzeichnis. Ein erneuter Start öffnet dieselbe
+Instanz. Der MCP-Starter kann die GUI ohne Konsole starten und blockiert stdio ausschließlich
+für MCP. Named-Pipe-Anfragen verwenden JSON statt Pickle und einen zufälligen, mit DPAPI
+verschlüsselten Authentifizierungsschlüssel. Eine feste Methodenliste enthält keine Möglichkeit,
+die lokale Eingabefreigabe einzuschalten. Unter Linux verwenden Entwicklungstests Unix-Sockets.
 
-`controller.py` ist die einzige Autorität für Zustand und Eingabefreigabe. MCP-Tools
-rufen ihn über `GuiBridge` auf dem Qt-Hauptthread auf. Ein abgelaufener, noch nicht
-gestarteter Auftrag wird verworfen, damit verspätete Klicks nicht überraschend
-ausgeführt werden. Native Eingaben sind kurz und begrenzt, nicht als lang laufende
-Makros implementiert. Der globale Stopp wirkt nach einer gerade laufenden kurzen
-Eingabe, nicht als Unterbrechung bereits an Windows übergebener Ereignisse.
+`GuiBridge` serialisiert Requests auf den Qt-Hauptthread. Abgelaufene, noch nicht begonnene
+Aufträge werden verworfen. Client-Heartbeats laufen alle drei Sekunden; nach zwölf Sekunden ohne
+Heartbeat sperrt die GUI Eingaben. Eine normale Trennung sperrt sie sofort. GUI und Daten bleiben
+nach einer Trennung geöffnet. Die lokale App hat ihr eigenes Tray-Menü zum Beenden.
 
-`server.py` stellt die stdio-Werkzeuge bereit. Screenshot-Aufnahmen werden
-serialisiert. Der Controller versteckt beide Fenster, der Worker wartet kurz auf
-den Compositor, nimmt über MSS auf und stellt das HUD in einem `finally`-Block wieder
-her. Das kurze Ausblenden kann sichtbar sein. Display-Änderungen während der Aufnahme
-führen zu einem Fehler statt zu einem veralteten Koordinatenbezug.
+## Direkte KI
 
-## Koordinaten und DPI
+`LessonAgent` nimmt nur auf ausdrücklichen Lernstart oder Anforderung eines neuen Schritts ein
+Bild auf. Einstellungen und API-Key werden für die Anfrage kopiert. Der HTTP-Aufruf läuft in
+einem Worker mit Zeitlimits. Abbruchmarkierungen und Request-Identität verhindern, dass verspätete
+Antworten ein anderes Tutorial überschreiben. Es gibt keine automatische Dauerbeobachtung.
 
-Das öffentliche Protokoll verwendet relative Koordinaten im Bereich 0 bis 1 auf
-**einem ausgewählten Monitor**. Ein Rechteck muss vollständig darin liegen.
+Das Modell erhält Lernziel, höchstens acht bisherige Schritte und das aktuelle Bild. Seine
+JSON-Antwort wird vollständig mit dem Pydantic-Datenmodell validiert, einschließlich eindeutiger
+IDs und im Monitor liegender Zielrechtecke. Ungültige Antworten erzeugen eine wiederholbare
+Fehlermeldung. Der direkte Tutor verfügt über keine Eingabewerkzeuge.
 
-- Screenshots verwenden die über Win32 ermittelte physische Monitorgeometrie.
-- Qt zeichnet in der logischen Geometrie des zugehörigen `QScreen`.
-- `QScreen.name()` wird mit dem Win32-Display-Gerätenamen abgeglichen.
-- Klicks werden in physische Pixel umgerechnet; der rechte/untere Rand wird auf
-  den letzten Pixel begrenzt.
-- Bei fehlender Zuordnung sind Capture und Klicks gesperrt.
-- Bei einer Displayänderung wird die alte Lektion verworfen und die Steuerung gesperrt.
+## Capture und DPI
 
-Die Windows-Build-Manifestdatei setzt Per-Monitor-V2-DPI-Awareness. Die manuelle
-Validierung von mehreren Monitoren, negativen Ursprüngen und DPI-Mischungen bleibt
-ein notwendiger Abnahmeschritt.
+Öffentliche Koordinaten sind monitor-relative Werte von 0 bis 1. Qt zeichnet in logischen
+Koordinaten; Win32-Monitorrechtecke liefern die physischen Pixel für MSS und Eingaben.
+`QScreen.name()` wird mit dem Windows-Displaynamen abgeglichen. Bei fehlender Zuordnung sind
+Capture und Klicks gesperrt. Das Manifest verwendet Per-Monitor-V2-DPI-Awareness.
 
-## Prozess-Lebenszyklus
+Vor einer Aufnahme versteckt der Controller alle sichtbaren App-Fenster. Capture-Leases zählen
+parallele Aufnahmen; erst nach der letzten erscheinen die Fenster wieder. Ein abgestürzter
+MCP-Starter kann das HUD nicht unbegrenzt verstecken: verwaiste Leases laufen nach zehn Sekunden
+ab. Ein abgelaufener oder bei Displayänderung inkonsistenter Screenshot wird verworfen.
 
-Ohne Argumente bzw. mit `--demo` startet eine lokale Demo. Mit `--mcp` startet der
-Client den stdio-Worker plus HUD. EOF vom Client schließt Qt. Lokales Schließen
-beendet nach Qt-Cleanup den dedizierten Prozess, auch wenn der stdio-Reader noch auf
-Eingaben wartet. stdout ist für JSON-RPC reserviert, Logs gehen nach stderr.
+## Speicherung und Distribution
+
+Windows DPAPI schützt den API-Key für den aktuellen Benutzer. Einstellungen werden atomar ersetzt.
+Es gibt keine Screen-Aufzeichnungen oder automatische Tutorial-Persistenz. Exportierte JSON-Dateien
+enthalten nur Tutorialtexte und Markierungen. Rotierende lokale Fehlerlogs sind begrenzt.
+
+PyInstaller baut einen GUI- und einen Konsolenstarter mit gemeinsamem Laufzeitordner. Inno Setup
+installiert pro Benutzer ohne erhöhte Rechte. Die CI prüft auch die gebauten Programme und führt
+eine stille Installation, einen GUI-Starttest und eine Deinstallation aus.
