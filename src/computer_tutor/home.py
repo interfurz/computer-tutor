@@ -69,6 +69,7 @@ class HomeWindow(QMainWindow):
         navigation.addWidget(label("computer\ntutor", "brand"))
         navigation.addSpacing(32)
         self.pages = QStackedWidget()
+        self.pages.setStyleSheet("QStackedWidget { background: #101a21; }")
         group = QButtonGroup(self)
         self.nav_buttons = []
         for index, title in enumerate(["Lernen", "KI-Verbindung", "MCP-Agenten"]):
@@ -99,6 +100,8 @@ class HomeWindow(QMainWindow):
 
     def page(self, title, subtitle):
         page = QWidget()
+        page.setObjectName("page")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(34, 30, 34, 28)
         layout.setSpacing(16)

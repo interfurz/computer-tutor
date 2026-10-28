@@ -4,6 +4,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 STYLE = """
 QWidget { font-family: 'Segoe UI'; font-size: 13px; color: #e9f1ee; }
 QMainWindow, QDialog { background: #101a21; }
+QWidget#page { background: #101a21; }
 QWidget#sidebar { background: #14232b; border-right: 1px solid #2a4148; }
 QLabel#brand { color: #75e6c6; font-weight: 700; font-size: 18px; }
 QLabel#hero { font-size: 30px; font-weight: 600; }
